@@ -66,7 +66,8 @@ class FastGradientMethod(EvasionAttack):
         "tensor_board",
     ]
     _estimator_requirements = (BaseEstimator, LossGradientsMixin)
-
+	
+	#costruttore della classe
     def __init__(
         self,
         estimator: "CLASSIFIER_LOSS_GRADIENTS_TYPE",
@@ -201,6 +202,7 @@ class FastGradientMethod(EvasionAttack):
 
         return adv_x
 
+	#funzione che genera gli adversarial samples
     def generate(self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs) -> np.ndarray:
         """Generate adversarial samples and return them in an array.
 
@@ -215,13 +217,14 @@ class FastGradientMethod(EvasionAttack):
         :type mask: `np.ndarray`
         :return: An array holding the adversarial examples.
         """
+        #se è stata passata la maschera delle immagini la preleva (viene passata al costruttore della classe)
         mask = self._get_mask(x, **kwargs)
 
-        # Ensure eps is broadcastable
+        #Controlla la compatibilità tra le dimensioni di x (training set) e di eps
         self._check_compatibility_input_and_eps(x=x)
 
-        if isinstance(self.estimator, ClassifierMixin):
-            y = check_and_transform_label_format(y, self.estimator.nb_classes)
+        if isinstance(self.estimator, ClassifierMixin): #controlla se il classificatore passato come input è di tipo Mixin calcola le perturbazioni in un certo modo
+            y = check_and_transform_label_format(y, self.estimator.nb_classes) #funzione di utils.py che si occupa delle label di y
 
             if y is None:
                 # Throw error if attack is targeted, but no targets are provided
@@ -237,6 +240,7 @@ class FastGradientMethod(EvasionAttack):
 
             # Return adversarial examples computed with minimal perturbation if option is active
             rate_best: Optional[float]
+            #se al costruttore è stato passato minimal=True allora calcola la minima perturbazione, altrimenti fa un altro calcolo
             if self.minimal:
                 logger.info("Performing minimal perturbation FGM.")
                 adv_x_best = self._minimal_perturbation(x, y, mask)
@@ -248,6 +252,7 @@ class FastGradientMethod(EvasionAttack):
                     self.targeted,
                     batch_size=self.batch_size,  # type: ignore
                 )
+            #se non è stato settato minimal=True usa la funzione compute() per calcolare gli adversarial samples    
             else:
                 adv_x_best = None
                 rate_best = None
@@ -293,7 +298,7 @@ class FastGradientMethod(EvasionAttack):
                     batch_size=self.batch_size,
                 ),
             )
-
+		#se il classificatore non è Mixin usa comput senza passare la maschera (se non è Mixin forse non è un classificatore)
         else:
             if self.minimal:
                 raise ValueError("Minimal perturbation is only supported for classification.")
@@ -370,7 +375,8 @@ class FastGradientMethod(EvasionAttack):
 
         if not isinstance(self.minimal, bool):
             raise ValueError("The flag `minimal` has to be of type bool.")
-
+	
+	#richiamata da minimal_perturbation e compute per calacolare il rumore da applicare
     def _compute_perturbation(
         self, batch: np.ndarray, batch_labels: np.ndarray, mask: Optional[np.ndarray]
     ) -> np.ndarray:
@@ -453,7 +459,8 @@ class FastGradientMethod(EvasionAttack):
         assert batch.shape == grad.shape
 
         return grad
-
+	
+	#applica le perturbazioni calcolare da compute tramite compute_perturbation
     def _apply_perturbation(
         self, batch: np.ndarray, perturbation: np.ndarray, eps_step: Union[int, float, np.ndarray]
     ) -> np.ndarray:
@@ -469,13 +476,13 @@ class FastGradientMethod(EvasionAttack):
                         np.isnan(perturbation_step_i_array), 0.0, perturbation_step_i_array
                     ).astype(np.object)
 
-        batch = batch + perturbation_step
+        batch = batch + perturbation_step #qui applica realmente la perturbazione
         if self.estimator.clip_values is not None:
             clip_min, clip_max = self.estimator.clip_values
             batch = np.clip(batch, clip_min, clip_max)
 
         return batch
-
+	#calcola le adv_img nel caso non minimal
     def _compute(
         self,
         x: np.ndarray,
