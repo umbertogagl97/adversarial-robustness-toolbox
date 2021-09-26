@@ -112,6 +112,7 @@ class FastGradientMethod(EvasionAttack):
 
         self._batch_id = 0
         self._i_max_iter = 0
+        print("hello")
 
     def _check_compatibility_input_and_eps(self, x: np.ndarray):
         """
