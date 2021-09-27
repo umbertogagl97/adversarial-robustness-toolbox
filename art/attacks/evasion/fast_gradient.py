@@ -112,7 +112,8 @@ class FastGradientMethod(EvasionAttack):
 
         self._batch_id = 0
         self._i_max_iter = 0
-        print("hello")
+        print("b&w version")
+        print("eps dim: ",self.eps.ndim)
 
     def _check_compatibility_input_and_eps(self, x: np.ndarray):
         """
@@ -125,6 +126,7 @@ class FastGradientMethod(EvasionAttack):
             if self.eps.ndim > x.ndim:
                 raise ValueError("The `eps` shape must be broadcastable to input shape.")
 
+
     def _minimal_perturbation(self, x: np.ndarray, y: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """
         Iteratively compute the minimal perturbation necessary to make the class prediction change. Stop when the
@@ -134,6 +136,9 @@ class FastGradientMethod(EvasionAttack):
         :param y: Target values (class labels) one-hot-encoded of shape (nb_samples, nb_classes).
         :return: An array holding the adversarial examples.
         """
+
+		print("minimal_perturbation")
+
         adv_x = x.copy()
 
         # Compute perturbation with implicit batching
@@ -226,21 +231,20 @@ class FastGradientMethod(EvasionAttack):
 
         if isinstance(self.estimator, ClassifierMixin): #controlla se il classificatore passato come input è di tipo Mixin calcola le perturbazioni in un certo modo
             y = check_and_transform_label_format(y, self.estimator.nb_classes) #funzione di utils.py che si occupa delle label di y
-
+			
+			#se y non è stato passato come input dà messaggio di errore se l'attacco è mirato, oppure usa come y le predizioni del modello passato come input
             if y is None:
-                # Throw error if attack is targeted, but no targets are provided
                 if self.targeted:
                     raise ValueError("Target labels `y` need to be provided for a targeted attack.")
-
-                # Use model predictions as correct outputs
                 logger.info("Using model predictions as correct labels for FGM.")
                 y = get_labels_np_array(self.estimator.predict(x, batch_size=self.batch_size))  # type: ignore
 
-            if self.estimator.nb_classes > 2:
-                y = y / np.sum(y, axis=1, keepdims=True)
+            if self.estimator.nb_classes > 2: #normalizza i valori reali (o predetti dal classificatore)
+                y = y / np.sum(y, axis=1, keepdims=True) #sum effettua la somma degli elementi per ogni riga (ovvero somma i valori assegnati alle classi per ogni immagine, keepdims indica di non rimuovere le dimensioni ma lasciarle tutte per rendere la somma broadcastable con y iniziale
 
             # Return adversarial examples computed with minimal perturbation if option is active
             rate_best: Optional[float]
+            
             #se al costruttore è stato passato minimal=True allora calcola la minima perturbazione, altrimenti fa un altro calcolo
             if self.minimal:
                 logger.info("Performing minimal perturbation FGM.")
@@ -258,7 +262,8 @@ class FastGradientMethod(EvasionAttack):
                 adv_x_best = None
                 rate_best = None
 
-                for _ in range(max(1, self.num_random_init)):
+                for _ in range(max(1, self.num_random_init)): #usa max perchè num_random potrebbe essere 0 o negativo
+                    #calcola le immagini perturbate
                     adv_x = self._compute(
                         x,
                         x,
@@ -271,7 +276,7 @@ class FastGradientMethod(EvasionAttack):
                     )
 
                     if self.num_random_init > 1:
-                        rate = 100 * compute_success(
+                        rate = 100 * compute_success( #funzione di util.py che calcola il success rate dell'attacco usando x,y e adv_x
                             self.estimator,  # type: ignore
                             x,
                             y,
@@ -299,11 +304,11 @@ class FastGradientMethod(EvasionAttack):
                     batch_size=self.batch_size,
                 ),
             )
-		#se il classificatore non è Mixin usa comput senza passare la maschera (se non è Mixin forse non è un classificatore)
+		#se il classificatore non è Mixin usa compute senza passare la maschera (se non è Mixin forse non è un classificatore)
         else:
+			#se minimal=True dà errore perché ha bisogno di un classificatore
             if self.minimal:
                 raise ValueError("Minimal perturbation is only supported for classification.")
-
             if y is None:
                 # Throw error if attack is targeted, but no targets are provided
                 if self.targeted:
@@ -495,6 +500,8 @@ class FastGradientMethod(EvasionAttack):
         project: bool,
         random_init: bool,
     ) -> np.ndarray:
+		print("compute, eps: ",eps)
+		print("compute, eps_step: ",eps_step)
         if random_init:
             n = x.shape[0]
             m = np.prod(x.shape[1:]).item()
@@ -568,6 +575,8 @@ class FastGradientMethod(EvasionAttack):
 
         return x_adv
 
+
+	#preleva la maschera passata a generate ed effettua dei controlli, se non viene passata nessura maschera non fa nulla
     @staticmethod
     def _get_mask(x: np.ndarray, **kwargs) -> np.ndarray:
         """
