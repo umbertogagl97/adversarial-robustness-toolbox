@@ -126,7 +126,6 @@ class FastGradientMethod1(EvasionAttack):
             if self.eps.ndim > x.ndim:
                 raise ValueError("The `eps` shape must be broadcastable to input shape.")
 
-
     def _minimal_perturbation(self, x: np.ndarray, y: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """
         Iteratively compute the minimal perturbation necessary to make the class prediction change. Stop when the
@@ -136,11 +135,9 @@ class FastGradientMethod1(EvasionAttack):
         :param y: Target values (class labels) one-hot-encoded of shape (nb_samples, nb_classes).
         :return: An array holding the adversarial examples.
         """
-
-		print("minimal_perturbation")
-
+        print("minimal_perturbation")
         adv_x = x.copy()
-
+		
         # Compute perturbation with implicit batching
         for batch_id in range(int(np.ceil(adv_x.shape[0] / float(self.batch_size)))):
             batch_index_1, batch_index_2 = (
@@ -488,6 +485,7 @@ class FastGradientMethod1(EvasionAttack):
             batch = np.clip(batch, clip_min, clip_max)
 
         return batch
+        
 	#calcola le adv_img nel caso non minimal
     def _compute(
         self,
@@ -499,9 +497,9 @@ class FastGradientMethod1(EvasionAttack):
         eps_step: Union[int, float, np.ndarray],
         project: bool,
         random_init: bool,
-    ) -> np.ndarray:
-		print("compute, eps: ",eps)
-		print("compute, eps_step: ",eps_step)
+        ) -> np.ndarray:
+			
+        print("compute, eps: "+eps+" eps_step: "+eps_step)
         if random_init:
             n = x.shape[0]
             m = np.prod(x.shape[1:]).item()
