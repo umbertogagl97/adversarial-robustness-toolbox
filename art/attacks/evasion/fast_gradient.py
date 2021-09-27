@@ -113,7 +113,6 @@ class FastGradientMethod(EvasionAttack):
         self._batch_id = 0
         self._i_max_iter = 0
         print("b&w version")
-        print("eps dim: ",self.eps.ndim)
 
     def _check_compatibility_input_and_eps(self, x: np.ndarray):
         """
@@ -269,7 +268,7 @@ class FastGradientMethod(EvasionAttack):
                         self.eps,
                         self.eps,
                         self._project,
-                        self.num_random_init > 0,
+                        self.num_random_init > 0, #se num_random_init>0 restituisce True
                     )
 
                     if self.num_random_init > 1:
@@ -381,13 +380,14 @@ class FastGradientMethod(EvasionAttack):
 	
 	#richiamata da minimal_perturbation e compute per calacolare il rumore da applicare
     def _compute_perturbation(
-        self, batch: np.ndarray, batch_labels: np.ndarray, mask: Optional[np.ndarray]
+        self, batch: np.ndarray, batch_labels: np.ndarray, mask: Optional[np.ndarray] #se num_random_init=0 batch contiene adv_x che a loro volta contengono le x originali
     ) -> np.ndarray:
         # Pick a small scalar to avoid division by 0
         tol = 10e-8
 
         # Get gradient wrt loss; invert it if attack is targeted
-        grad = self.estimator.loss_gradient(batch, batch_labels) * (1 - 2 * int(self.targeted))
+        #sostanzialmente è qui che compute_perturbation calcola il gradiente che ha le stesse dimensioni del batch [n,96,96,3]
+        grad = self.estimator.loss_gradient(batch, batch_labels) * (1 - 2 * int(self.targeted)) #se l'attacco è mirato inverte il gradiente
 
         # Write summary
         if self.summary_writer is not None:
@@ -432,6 +432,7 @@ class FastGradientMethod(EvasionAttack):
             grad = np.where(mask == 0.0, 0.0, grad)
 
         # Apply norm bound
+        #a seconda della norma scelta effettua operazioni diverse
         def _apply_norm(grad, object_type=False):
             if (grad.dtype != np.object and np.isinf(grad).any()) or np.isnan(grad.astype(np.float32)).any():
                 logger.info("The loss gradient array contains at least one positive or negative infinity.")
@@ -463,12 +464,12 @@ class FastGradientMethod(EvasionAttack):
 
         return grad
 	
-	#applica le perturbazioni calcolare da compute tramite compute_perturbation
+	#applica le perturbazioni calcolate da compute_perturbation
     def _apply_perturbation(
         self, batch: np.ndarray, perturbation: np.ndarray, eps_step: Union[int, float, np.ndarray]
     ) -> np.ndarray:
 
-        perturbation_step = eps_step * perturbation
+        perturbation_step = eps_step * perturbation #calcolo perturbazione da sommare all'immagine
         if perturbation_step.dtype != np.object:
             perturbation_step[np.isnan(perturbation_step)] = 0
         else:
@@ -499,8 +500,9 @@ class FastGradientMethod(EvasionAttack):
         random_init: bool,
         ) -> np.ndarray:
 			
-        print("compute, eps: "+eps+" eps_step: "+eps_step)
-        if random_init:
+        #generate quando richiama compute pone eps_step=eps
+        
+        if random_init: #se num_random_init>0 esegue questo codice
             n = x.shape[0]
             m = np.prod(x.shape[1:]).item()
             random_perturbation = random_sphere(n, m, eps, self.norm).reshape(x.shape).astype(ART_NUMPY_DTYPE)
@@ -511,7 +513,8 @@ class FastGradientMethod(EvasionAttack):
             if self.estimator.clip_values is not None:
                 clip_min, clip_max = self.estimator.clip_values
                 x_adv = np.clip(x_adv, clip_min, clip_max)
-        else:
+        
+        else: #se num_random_init=0 inizializza x_adv con le x originali
             if x.dtype == np.object:
                 x_adv = x.copy()
             else:
@@ -522,7 +525,7 @@ class FastGradientMethod(EvasionAttack):
             self._batch_id = batch_id
             batch_index_1, batch_index_2 = batch_id * self.batch_size, (batch_id + 1) * self.batch_size
             batch_index_2 = min(batch_index_2, x.shape[0])
-            batch = x_adv[batch_index_1:batch_index_2]
+            batch = x_adv[batch_index_1:batch_index_2] #se num_random_init=0 batch contiene adv_x che a loro volta contengono le x originali
             batch_labels = y[batch_index_1:batch_index_2]
 
             mask_batch = mask
@@ -533,7 +536,7 @@ class FastGradientMethod(EvasionAttack):
                     mask_batch = mask[batch_index_1:batch_index_2]
 
             # Get perturbation
-            perturbation = self._compute_perturbation(batch, batch_labels, mask_batch)
+            perturbation = self._compute_perturbation(batch, batch_labels, mask_batch) #perturbazioni RGB con dim [n,96,96,3]
 
             # Compute batch_eps and batch_eps_step
             if isinstance(eps, np.ndarray) and isinstance(eps_step, np.ndarray):
@@ -552,6 +555,7 @@ class FastGradientMethod(EvasionAttack):
             # Apply perturbation and clip
             x_adv[batch_index_1:batch_index_2] = self._apply_perturbation(batch, perturbation, batch_eps_step)
 
+#da vedere cos'è project
             if project:
                 if x_adv.dtype == np.object:
                     for i_sample in range(batch_index_1, batch_index_2):
